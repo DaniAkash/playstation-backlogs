@@ -1,7 +1,7 @@
 import { chromium, Page } from "playwright";
 import { db } from "@/db";
 import { purchasedGames, gameRatings } from "@/db/schema";
-import { eq, isNull } from "drizzle-orm";
+import { desc, eq, isNull } from "drizzle-orm";
 
 const NUM_TABS = 4;
 
@@ -91,7 +91,8 @@ async function main() {
       gameRatings,
       eq(purchasedGames.entitlementId, gameRatings.entitlementId)
     )
-    .where(isNull(gameRatings.id));
+    .where(isNull(gameRatings.id))
+    .orderBy(desc(purchasedGames.id));
 
   console.log(`Found ${games.length} games without ratings`);
 
