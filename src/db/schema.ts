@@ -31,3 +31,19 @@ export const purchasedGames = sqliteTable('purchased_games', {
     sql`(unixepoch())`,
   ).$onUpdate(() => new Date()),
 })
+
+export const gameRatings = sqliteTable('game_ratings', {
+  id: integer({ mode: 'number' }).primaryKey({ autoIncrement: true }),
+  entitlementId: text('entitlement_id').notNull().unique().references(() => purchasedGames.entitlementId),
+  topCriticAverage: integer('top_critic_average'),
+  criticsRecommend: integer('critics_recommend'),
+  playerRating: text('player_rating'),
+  tier: text('tier'),
+  url: text('url'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(
+    sql`(unixepoch())`,
+  ),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(
+    sql`(unixepoch())`,
+  ).$onUpdate(() => new Date()),
+})
