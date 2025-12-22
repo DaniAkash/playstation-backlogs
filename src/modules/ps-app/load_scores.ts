@@ -89,13 +89,17 @@ async function scrapeGameRating(
     console.error(`Error scraping ${gameName}:`, error);
     return null;
   } finally {
-    await page.goto("https://opencritic.com/", {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
-    await page.waitForSelector('input[placeholder="Search"]', {
-      timeout: 10000,
-    });
+    try {
+      await page.goto("https://opencritic.com/", {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+      await page.waitForSelector('input[placeholder="Search"]', {
+        timeout: 10000,
+      });
+    } catch (navError) {
+      console.error(`Error navigating back to homepage:`, navError);
+    }
   }
 }
 
@@ -162,7 +166,12 @@ async function main() {
       `\n[Browser ${tabIndex + 1}] [${currentNum}/${totalGames}] Processing: ${game.name}`,
     );
 
-    const rating = await scrapeGameRating(game.name, page);
+    let rating: ScrapedRating | null = null;
+    try {
+      rating = await scrapeGameRating(game.name, page);
+    } catch (error) {
+      console.error(`[Browser ${tabIndex + 1}] Unexpected error:`, error);
+    }
 
     if (rating) {
       await db
@@ -204,7 +213,7 @@ async function main() {
   // Process games in parallel batches
   for (let i = 0; i < games.length; i += NUM_TABS) {
     const batch = games.slice(i, i + NUM_TABS);
-    await Promise.all(
+    await Promise.allSettled(
       batch.map((game, index) => processGame(game, pages[index], index)),
     );
   }
