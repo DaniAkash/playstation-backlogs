@@ -48,6 +48,11 @@ async function scrapeGameRating(
 
     await page.click("ngb-typeahead-window button:first-child");
 
+    // Wait for URL to change to a game page
+    await page.waitForFunction(() => window.location.href.includes("/game/"), {
+      timeout: 10000,
+    });
+
     await page.waitForSelector("app-score-orb .inner-orb", { timeout: 10000 });
 
     const scores = await page.$$eval("app-score-orb .inner-orb", (elements) =>

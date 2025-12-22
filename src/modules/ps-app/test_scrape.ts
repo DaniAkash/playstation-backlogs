@@ -1,4 +1,4 @@
-import { chromium, Page } from "playwright";
+import puppeteer, { Page } from "puppeteer";
 
 interface GameRating {
   gameName: string;
@@ -11,37 +11,48 @@ interface GameRating {
 
 async function scrapeGameRating(
   gameName: string,
-  page: Page,
+  page: Page
 ): Promise<GameRating | null> {
   console.log(`Searching for: ${gameName}`);
 
   try {
     const searchInputSelector = 'input[placeholder="Search"]';
-    await page.waitForSelector(searchInputSelector, { timeout: 30000 });
-    await page.fill(searchInputSelector, "");
-    await page.fill(searchInputSelector, gameName);
+    await page.waitForSelector(searchInputSelector, { timeout: 10000 });
+
+    // Clear and type using Puppeteer
+    const searchInput = await page.$(searchInputSelector);
+    await searchInput?.click({ clickCount: 3 });
+    await searchInput?.type(gameName);
 
     const searchResultSelector = "ngb-typeahead-window";
-    await page.waitForSelector(searchResultSelector, { timeout: 30000 });
+    await page.waitForSelector(searchResultSelector, { timeout: 10000 });
 
     await page.click("ngb-typeahead-window button:first-child");
 
-    const scores = await page
-      .locator("app-score-orb .inner-orb")
-      .allTextContents();
+    // Wait for URL to change to a game page
+    await page.waitForFunction(() => window.location.href.includes("/game/"), {
+      timeout: 10000,
+    });
 
-    const [topCritic, criticsRec, playerRate] = scores.map((s) => s.trim());
+    await page.waitForSelector("app-score-orb .inner-orb", { timeout: 10000 });
 
-    const tier =
-      (await page
-        .locator("app-tier-display.mighty-score img")
-        .getAttribute("alt")) || "No Tier";
+    const scores = await page.$$eval("app-score-orb .inner-orb", (elements) =>
+      elements.map((el) => el.textContent?.trim() || "")
+    );
+
+    const [topCritic, criticsRec, playerRate] = scores;
+
+    const tier = await page
+      .$eval("app-tier-display.mighty-score img", (el) =>
+        el.getAttribute("alt")
+      )
+      .catch(() => "No Tier");
 
     const url = page.url();
 
     return {
       gameName,
-      tier,
+      tier: tier || "No Tier",
       topCriticAverage: topCritic,
       criticsRecommend: criticsRec,
       playerRating: playerRate,
@@ -50,6 +61,11 @@ async function scrapeGameRating(
   } catch (error) {
     console.error(`Error scraping ${gameName}:`, error);
     return null;
+  } finally {
+    await page.goto("https://opencritic.com/", {
+      waitUntil: "networkidle0",
+      timeout: 30000,
+    });
   }
 }
 
@@ -64,13 +80,15 @@ async function main() {
 
   const results: GameRating[] = [];
 
-  const browser = await chromium.launch({
+  const browser = await puppeteer.launch({
     headless: false,
+    defaultViewport: { width: 1512, height: 982 },
+    args: ["--window-size=1512,982"],
   });
   const page = await browser.newPage();
 
   await page.goto("https://opencritic.com/", {
-    waitUntil: "networkidle",
+    waitUntil: "networkidle0",
     timeout: 90000,
   });
 
