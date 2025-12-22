@@ -19,16 +19,16 @@ async function scrapeGameRating(
 
   try {
     const searchInputSelector = 'input[placeholder="Search"]';
-    await page.waitForSelector(searchInputSelector, { timeout: 30000 });
+    await page.waitForSelector(searchInputSelector, { timeout: 10000 });
     await page.fill(searchInputSelector, "");
     await page.fill(searchInputSelector, gameName);
 
     const searchResultSelector = "ngb-typeahead-window";
-    await page.waitForSelector(searchResultSelector, { timeout: 30000 });
+    await page.waitForSelector(searchResultSelector, { timeout: 10000 });
 
     await page.click("ngb-typeahead-window button:first-child");
 
-    await page.waitForSelector("app-score-orb .inner-orb", { timeout: 60000 });
+    await page.waitForSelector("app-score-orb .inner-orb", { timeout: 10000 });
 
     const scores = await page
       .locator("app-score-orb .inner-orb")
@@ -73,6 +73,7 @@ async function main() {
   let processed = 0;
   let success = 0;
   let failed = 0;
+  const failedGames: string[] = [];
 
   for (const game of games) {
     processed++;
@@ -107,6 +108,7 @@ async function main() {
       console.log(`  Saved: ${rating.tier} - ${rating.topCriticAverage}/100`);
     } else {
       failed++;
+      failedGames.push(game.name);
       console.log(`  Failed to scrape rating`);
     }
   }
@@ -117,6 +119,13 @@ async function main() {
   console.log(`Total games: ${games.length}`);
   console.log(`Successfully scraped: ${success}`);
   console.log(`Failed: ${failed}`);
+
+  if (failedGames.length > 0) {
+    console.log("\n========== FAILED GAMES ==========");
+    for (const name of failedGames) {
+      console.log(`  - ${name}`);
+    }
+  }
 }
 
 main();
