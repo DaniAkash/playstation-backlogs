@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { purchasedGames, gameRatings } from "@/db/schema";
 import { desc, eq, isNull } from "drizzle-orm";
 
+const NUM_TABS = 4;
+
 
 interface ScrapedRating {
   topCriticAverage: number | null;
@@ -114,11 +116,17 @@ async function main() {
     args: ["--window-size=1512,982"],
   });
 
-  const page = await browser.newPage();
-  await page.goto("https://opencritic.com/", {
-    waitUntil: "networkidle0",
-    timeout: 90000,
-  });
+  // Create multiple pages (tabs)
+  const pages: Page[] = [];
+  for (let i = 0; i < NUM_TABS; i++) {
+    const page = await browser.newPage();
+    await page.goto("https://opencritic.com/", {
+      waitUntil: "networkidle0",
+      timeout: 90000,
+    });
+    pages.push(page);
+    console.log(`Tab ${i + 1} ready`);
+  }
 
   let processed = 0;
   let success = 0;
@@ -126,9 +134,14 @@ async function main() {
   const failedGames: string[] = [];
   const totalGames = games.length;
 
-  for (const game of games) {
-    processed++;
-    console.log(`\n[${processed}/${totalGames}] Processing: ${game.name}`);
+  // Worker function for each tab
+  async function processGame(
+    game: { id: number; name: string; entitlementId: string },
+    page: Page,
+    tabIndex: number
+  ) {
+    const currentNum = ++processed;
+    console.log(`\n[Tab ${tabIndex + 1}] [${currentNum}/${totalGames}] Processing: ${game.name}`);
 
     const rating = await scrapeGameRating(game.name, page);
 
@@ -156,12 +169,25 @@ async function main() {
         });
 
       success++;
-      console.log(`  Saved: ${rating.tier} - ${rating.topCriticAverage}/100`);
+      console.log(`  [Tab ${tabIndex + 1}] Saved:`);
+      console.log(`    Tier: ${rating.tier}`);
+      console.log(`    Top Critic Average: ${rating.topCriticAverage}`);
+      console.log(`    Critics Recommend: ${rating.criticsRecommend}%`);
+      console.log(`    Player Rating: ${rating.playerRating}`);
+      console.log(`    URL: ${rating.url}`);
     } else {
       failed++;
       failedGames.push(game.name);
-      console.log(`  Failed to scrape rating`);
+      console.log(`  [Tab ${tabIndex + 1}] Failed to scrape rating`);
     }
+  }
+
+  // Process games in parallel batches
+  for (let i = 0; i < games.length; i += NUM_TABS) {
+    const batch = games.slice(i, i + NUM_TABS);
+    await Promise.all(
+      batch.map((game, index) => processGame(game, pages[index], index))
+    );
   }
 
   await browser.close();
