@@ -82,9 +82,10 @@ async function scrapeGameRating(
     return null;
   } finally {
     await page.goto("https://opencritic.com/", {
-      waitUntil: "networkidle0",
+      waitUntil: "domcontentloaded",
       timeout: 30000,
     });
+    await page.waitForSelector('input[placeholder="Search"]', { timeout: 10000 });
   }
 }
 
@@ -113,7 +114,12 @@ async function main() {
   const browser = await puppeteer.launch({
     headless: false,
     defaultViewport: { width: 1512, height: 982 },
-    args: ["--window-size=1512,982"],
+    args: [
+      "--window-size=1512,982",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+    ],
   });
 
   // Create multiple pages (tabs)
@@ -121,9 +127,10 @@ async function main() {
   for (let i = 0; i < NUM_TABS; i++) {
     const page = await browser.newPage();
     await page.goto("https://opencritic.com/", {
-      waitUntil: "networkidle0",
+      waitUntil: "domcontentloaded",
       timeout: 90000,
     });
+    await page.waitForSelector('input[placeholder="Search"]', { timeout: 30000 });
     pages.push(page);
     console.log(`Tab ${i + 1} ready`);
   }
