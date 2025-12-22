@@ -1,9 +1,8 @@
-import { chromium, Page } from "playwright";
+import puppeteer, { Page } from "puppeteer";
 import { db } from "@/db";
 import { purchasedGames, gameRatings } from "@/db/schema";
 import { desc, eq, isNull } from "drizzle-orm";
 
-const NUM_TABS = 4;
 
 interface ScrapedRating {
   topCriticAverage: number | null;
@@ -38,8 +37,11 @@ async function scrapeGameRating(
   try {
     const searchInputSelector = 'input[placeholder="Search"]';
     await page.waitForSelector(searchInputSelector, { timeout: 10000 });
-    await page.fill(searchInputSelector, "");
-    await page.fill(searchInputSelector, searchName);
+
+    // Clear and type using Puppeteer
+    const searchInput = await page.$(searchInputSelector);
+    await searchInput?.click({ clickCount: 3 });
+    await searchInput?.type(searchName);
 
     const searchResultSelector = "ngb-typeahead-window";
     await page.waitForSelector(searchResultSelector, { timeout: 10000 });
@@ -48,16 +50,16 @@ async function scrapeGameRating(
 
     await page.waitForSelector("app-score-orb .inner-orb", { timeout: 10000 });
 
-    const scores = await page
-      .locator("app-score-orb .inner-orb")
-      .allTextContents();
+    const scores = await page.$$eval("app-score-orb .inner-orb", (elements) =>
+      elements.map((el) => el.textContent?.trim() || "")
+    );
 
-    const [topCritic, criticsRec, playerRate] = scores.map((s) => s.trim());
+    const [topCritic, criticsRec, playerRate] = scores;
 
-    const tier =
-      (await page
-        .locator("app-tier-display.mighty-score img")
-        .getAttribute("alt")) || null;
+    const tier = await page.$eval(
+      "app-tier-display.mighty-score img",
+      (el) => el.getAttribute("alt")
+    ).catch(() => null);
 
     const url = page.url();
 
@@ -73,7 +75,7 @@ async function scrapeGameRating(
     return null;
   } finally {
     await page.goto("https://opencritic.com/", {
-      waitUntil: "networkidle",
+      waitUntil: "networkidle0",
       timeout: 30000,
     });
   }
@@ -101,21 +103,17 @@ async function main() {
     return;
   }
 
-  const browser = await chromium.launch({
+  const browser = await puppeteer.launch({
     headless: false,
+    defaultViewport: { width: 1512, height: 982 },
+    args: ["--window-size=1512,982"],
   });
 
-  // Create multiple pages (tabs)
-  const pages: Page[] = [];
-  for (let i = 0; i < NUM_TABS; i++) {
-    const page = await browser.newPage();
-    await page.goto("https://opencritic.com/", {
-      waitUntil: "networkidle",
-      timeout: 90000,
-    });
-    pages.push(page);
-    console.log(`Tab ${i + 1} ready`);
-  }
+  const page = await browser.newPage();
+  await page.goto("https://opencritic.com/", {
+    waitUntil: "networkidle0",
+    timeout: 90000,
+  });
 
   let processed = 0;
   let success = 0;
@@ -123,14 +121,9 @@ async function main() {
   const failedGames: string[] = [];
   const totalGames = games.length;
 
-  // Worker function for each tab
-  async function processGame(
-    game: { id: number; name: string; entitlementId: string },
-    page: Page,
-    tabIndex: number
-  ) {
-    const currentNum = ++processed;
-    console.log(`\n[Tab ${tabIndex + 1}] [${currentNum}/${totalGames}] Processing: ${game.name}`);
+  for (const game of games) {
+    processed++;
+    console.log(`\n[${processed}/${totalGames}] Processing: ${game.name}`);
 
     const rating = await scrapeGameRating(game.name, page);
 
@@ -158,20 +151,12 @@ async function main() {
         });
 
       success++;
-      console.log(`  [Tab ${tabIndex + 1}] Saved: ${rating.tier} - ${rating.topCriticAverage}/100`);
+      console.log(`  Saved: ${rating.tier} - ${rating.topCriticAverage}/100`);
     } else {
       failed++;
       failedGames.push(game.name);
-      console.log(`  [Tab ${tabIndex + 1}] Failed to scrape rating`);
+      console.log(`  Failed to scrape rating`);
     }
-  }
-
-  // Process games in parallel batches
-  for (let i = 0; i < games.length; i += NUM_TABS) {
-    const batch = games.slice(i, i + NUM_TABS);
-    await Promise.all(
-      batch.map((game, index) => processGame(game, pages[index], index))
-    );
   }
 
   await browser.close();
