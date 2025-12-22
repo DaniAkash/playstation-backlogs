@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium, Page } from "playwright";
 
 interface GameRating {
   gameName: string;
@@ -9,66 +9,47 @@ interface GameRating {
   url: string;
 }
 
-async function scrapeGameRating(gameName: string): Promise<GameRating | null> {
+async function scrapeGameRating(
+  gameName: string,
+  page: Page,
+): Promise<GameRating | null> {
   console.log(`Searching for: ${gameName}`);
-  const browser = await chromium.launch({
-    headless: false,
-  });
-  const page = await browser.newPage();
 
   try {
-    await page.goto("https://opencritic.com/", {
-      waitUntil: "networkidle",
-      timeout: 90000,
-    });
-
-    console.log("waiting for network idle");
-
     const searchInputSelector = 'input[placeholder="Search"]';
     await page.waitForSelector(searchInputSelector, { timeout: 30000 });
+    await page.fill(searchInputSelector, "");
     await page.fill(searchInputSelector, gameName);
-
-    console.log("input complete");
 
     const searchResultSelector = "ngb-typeahead-window";
     await page.waitForSelector(searchResultSelector, { timeout: 30000 });
 
     await page.click("ngb-typeahead-window button:first-child");
 
-    console.log("clicked! waiting");
+    const scores = await page
+      .locator("app-score-orb .inner-orb")
+      .allTextContents();
 
-    await page.waitForSelector(".score-orb", { timeout: 60000 });
+    const [topCritic, criticsRec, playerRate] = scores.map((s) => s.trim());
 
-    const tierElement = await page.$(".tier-img");
-    const tier = (await tierElement?.getAttribute("alt")) || "Unknown";
-
-    const topCriticAverageElement = await page.$(".score-orb .score");
-    const topCriticAverage =
-      (await topCriticAverageElement?.textContent())?.trim() || "0";
-
-    const criticsRecommendElement = await page.$(".recommend-orb .score");
-    const criticsRecommend =
-      (await criticsRecommendElement?.textContent())?.trim() || "0";
-
-    const playerRatingElement = await page.$(".player-score-orb .score");
-    const playerRating =
-      (await playerRatingElement?.textContent())?.trim() || "0";
+    const tier =
+      (await page
+        .locator("app-tier-display.mighty-score img")
+        .getAttribute("alt")) || "No Tier";
 
     const url = page.url();
 
     return {
       gameName,
       tier,
-      topCriticAverage,
-      criticsRecommend,
-      playerRating,
+      topCriticAverage: topCritic,
+      criticsRecommend: criticsRec,
+      playerRating: playerRate,
       url,
     };
   } catch (error) {
     console.error(`Error scraping ${gameName}:`, error);
     return null;
-  } finally {
-    await browser.close();
   }
 }
 
@@ -83,8 +64,18 @@ async function main() {
 
   const results: GameRating[] = [];
 
+  const browser = await chromium.launch({
+    headless: false,
+  });
+  const page = await browser.newPage();
+
+  await page.goto("https://opencritic.com/", {
+    waitUntil: "networkidle",
+    timeout: 90000,
+  });
+
   for (const game of sampleGames) {
-    const rating = await scrapeGameRating(game);
+    const rating = await scrapeGameRating(game, page);
     if (rating) {
       results.push(rating);
     }
@@ -100,6 +91,8 @@ async function main() {
     console.log(`  URL: ${result.url}`);
     console.log("");
   }
+
+  await browser.close();
 }
 
 main();
