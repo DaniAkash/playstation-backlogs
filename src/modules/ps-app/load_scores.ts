@@ -1,7 +1,7 @@
 import puppeteer, { Page } from "puppeteer";
 import { db } from "@/db";
-import { purchasedGames, gameRatings } from "@/db/schema";
-import { desc, eq, isNull } from "drizzle-orm";
+import { purchasedGames, gameRatings, failedScrapes } from "@/db/schema";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 const NUM_TABS = 4;
 
@@ -115,7 +115,11 @@ async function main() {
       gameRatings,
       eq(purchasedGames.entitlementId, gameRatings.entitlementId),
     )
-    .where(isNull(gameRatings.id))
+    .leftJoin(
+      failedScrapes,
+      eq(purchasedGames.entitlementId, failedScrapes.entitlementId),
+    )
+    .where(and(isNull(gameRatings.id), isNull(failedScrapes.id)))
     .orderBy(desc(purchasedGames.id));
 
   console.log(`Found ${games.length} games without ratings`);
@@ -206,6 +210,17 @@ async function main() {
     } else {
       failed++;
       failedGames.push(game.name);
+
+      // Store failed scrape in database
+      await db
+        .insert(failedScrapes)
+        .values({
+          entitlementId: game.entitlementId,
+          gameName: game.name,
+          errorMessage: "Failed to scrape rating from OpenCritic",
+        })
+        .onConflictDoNothing();
+
       console.log(`  [Browser ${tabIndex + 1}] Failed to scrape rating`);
     }
   }

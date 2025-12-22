@@ -47,3 +47,13 @@ export const gameRatings = sqliteTable('game_ratings', {
     sql`(unixepoch())`,
   ).$onUpdate(() => new Date()),
 })
+
+export const failedScrapes = sqliteTable('failed_scrapes', {
+  id: integer({ mode: 'number' }).primaryKey({ autoIncrement: true }),
+  entitlementId: text('entitlement_id').notNull().unique().references(() => purchasedGames.entitlementId),
+  gameName: text('game_name').notNull(),
+  errorMessage: text('error_message'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(
+    sql`(unixepoch())`,
+  ),
+})
