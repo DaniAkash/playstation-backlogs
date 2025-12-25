@@ -154,6 +154,33 @@ If `load_scores.ts` times out frequently:
 - Check your internet connection
 - Run the script again - it will skip already-rated games
 
+### Retrying Failed Games
+
+Games that fail to scrape are stored in the `failed_scrapes` table and won't be retried automatically. To retry them:
+
+1. Open Drizzle Studio:
+   ```bash
+   bun run db:studio
+   ```
+
+2. Navigate to the `failed_scrapes` table
+
+3. Delete the rows for games you want to retry (select rows and delete, or run SQL):
+   ```sql
+   -- Delete specific game
+   DELETE FROM failed_scrapes WHERE game_name LIKE '%Game Name%';
+
+   -- Delete all failed scrapes to retry everything
+   DELETE FROM failed_scrapes;
+   ```
+
+4. Run the scraper again:
+   ```bash
+   bun run src/modules/ps-app/load_scores.ts
+   ```
+
+The script will now attempt to fetch ratings for those games again.
+
 ## License
 
 MIT
