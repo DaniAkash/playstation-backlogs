@@ -272,19 +272,19 @@ export function DataTable<TData, TValue>({
       <div className="flex flex-wrap gap-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
         <div className="flex items-center gap-2">
           <span className="text-gray-400">Total:</span>
-          <Badge variant="outline">{stats.totalGames}</Badge>
+          <Badge className="bg-slate-600 text-white">{stats.totalGames}</Badge>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400">Rated:</span>
-          <Badge className="bg-emerald-600">{stats.ratedGames}</Badge>
+          <Badge className="bg-emerald-600 text-white">{stats.ratedGames}</Badge>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400">Pending:</span>
-          <Badge variant="secondary">{stats.pendingGames}</Badge>
+          <Badge className="bg-amber-600 text-white">{stats.pendingGames}</Badge>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400">Failed:</span>
-          <Badge variant="destructive">{stats.failedGames}</Badge>
+          <Badge className="bg-red-600 text-white">{stats.failedGames}</Badge>
         </div>
       </div>
 

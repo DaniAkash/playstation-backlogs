@@ -129,12 +129,23 @@ export const columns: ColumnDef<GameWithRating>[] = [
     maxSize: 100,
     cell: ({ row }) => {
       const platform = row.getValue('platform') as string | null
-      return platform ? (
-        <Badge variant="outline" className="text-xs">
+      if (!platform) return <span className="text-gray-500">-</span>
+
+      const isPS5 = platform.toLowerCase().includes('ps5')
+      const isPS4 = platform.toLowerCase().includes('ps4')
+
+      return (
+        <Badge
+          className={`text-xs text-white ${
+            isPS5
+              ? 'bg-blue-600 hover:bg-blue-700'
+              : isPS4
+                ? 'bg-indigo-500 hover:bg-indigo-600'
+                : 'bg-slate-600 hover:bg-slate-700'
+          }`}
+        >
           {platform}
         </Badge>
-      ) : (
-        <span className="text-gray-500">-</span>
       )
     },
   },
