@@ -1,328 +1,159 @@
-Welcome to your new TanStack app! 
+# PlayStation Game Backlog Manager
 
-# Getting Started
+A tool to organize and prioritize your PlayStation game library based on OpenCritic ratings. Import your PS4/PS5 games from your PlayStation account and see which games are worth playing first.
 
-To run this application:
+![Game Backlog Screenshot](screenshot.png)
+
+## Features
+
+- **Import PlayStation Library** - Automatically fetch all your purchased PS4 and PS5 games
+- **OpenCritic Ratings** - Scrape game ratings, review scores, and tier rankings
+- **Sortable Data Table** - Filter and sort games by score, tier, platform, and status
+- **Persistent Preferences** - Column visibility, ordering, and filters saved to localStorage
+- **Platform Filtering** - View PS4, PS5, or all games
+
+## Prerequisites
+
+- [Bun](https://bun.sh/) runtime
+- A PlayStation Network account
+- Your PSN NPSSO token (authentication cookie)
+
+## Setup
+
+### 1. Install Dependencies
 
 ```bash
 bun install
-bun --bun run start
 ```
 
-# Building For Production
+### 2. Configure Environment Variables
 
-To build this application for production:
+Create a `.env` file in the project root:
+
+```env
+DATABASE_URL=./data.db
+NPSSO=your_npsso_token_here
+```
+
+#### Getting Your NPSSO Token
+
+1. Log into the [PlayStation Store](https://store.playstation.com/) in your browser
+2. Open a new tab and visit: `https://ca.account.sony.com/api/v1/ssocookie`
+3. Copy the `npsso` value from the JSON response
+4. Paste it into your `.env` file
+
+> **Note:** The NPSSO token expires after a few months. You'll need to repeat this process when it expires.
+
+### 3. Initialize Database
 
 ```bash
-bun --bun run build
+bun run db:push
 ```
 
-## Testing
+## Usage
 
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
+### Step 1: Import Your Game Library
+
+Fetch all your purchased games from PlayStation Network:
 
 ```bash
-bun --bun run test
+bun run src/modules/ps-app/load_data.ts
 ```
 
-## Styling
+This will import all your PS4 and PS5 games into the local database.
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+### Step 2: Scrape OpenCritic Ratings
 
-
-## Linting & Formatting
-
-This project uses [Biome](https://biomejs.dev/) for linting and formatting. The following scripts are available:
-
+Fetch ratings for your games from OpenCritic:
 
 ```bash
-bun --bun run lint
-bun --bun run format
-bun --bun run check
+bun run src/modules/ps-app/load_scores.ts
 ```
 
+This script:
+- Opens multiple browser windows to speed up scraping
+- Searches for each game on OpenCritic
+- Saves the critic score, recommendation percentage, player rating, and tier
+- Records failed scrapes so they won't be retried
 
-## Shadcn
+> **Note:** The script may need to be run multiple times if you have a large library, as some searches may fail due to naming differences or network issues.
 
-Add components using the latest version of [Shadcn](https://ui.shadcn.com/).
+### Step 3: View Your Backlog
+
+Start the web interface:
 
 ```bash
-pnpm dlx shadcn@latest add button
+bun run dev
 ```
 
+Open [http://localhost:3000](http://localhost:3000) to view your game backlog with ratings.
 
-## T3Env
+## Web Interface Features
 
-- You can use T3Env to add type safety to your environment variables.
-- Add Environment variables to the `src/env.mjs` file.
-- Use the environment variables in your code.
+- **Search** - Filter games by name
+- **Status Filter** - View all, rated, pending, or failed games
+- **Platform Filter** - Filter by PS4 or PS5
+- **Sortable Columns** - Click column headers to sort by score, tier, name, etc.
+- **Column Settings** - Hide/show and reorder columns
+- **Pagination** - Choose how many games to display per page
 
-### Usage
+## Rating Tiers
 
-```ts
-import { env } from "@/env";
+OpenCritic uses the following tier system:
 
-console.log(env.VITE_APP_TITLE);
-```
+| Tier | Description |
+|------|-------------|
+| **Mighty** | Exceptional (90+) |
+| **Strong** | Great (75-89) |
+| **Fair** | Average (60-74) |
+| **Weak** | Below Average (40-59) |
+| **Poor** | Bad (<40) |
 
+## Database Schema
 
+The project uses SQLite with Drizzle ORM:
 
+- `purchased_games` - Your PlayStation library
+- `game_ratings` - OpenCritic scores and tiers
+- `failed_scrapes` - Games that couldn't be found on OpenCritic
 
+## Scripts
 
+| Command | Description |
+|---------|-------------|
+| `bun run dev` | Start development server |
+| `bun run build` | Build for production |
+| `bun run db:studio` | Open Drizzle Studio to browse database |
+| `bun run db:push` | Push schema changes to database |
 
-## Routing
-This project uses [TanStack Router](https://tanstack.com/router). The initial setup is a file based router. Which means that the routes are managed as files in `src/routes`.
+## Tech Stack
 
-### Adding A Route
+- **Runtime:** Bun
+- **Framework:** TanStack Start (React)
+- **Database:** SQLite + Drizzle ORM
+- **Styling:** Tailwind CSS + shadcn/ui
+- **Scraping:** Puppeteer
+- **PSN API:** psn-api
 
-To add a new route to your application just add another a new file in the `./src/routes` directory.
+## Troubleshooting
 
-TanStack will automatically generate the content of the route file for you.
+### NPSSO Token Expired
+If `load_data.ts` fails with authentication errors, your NPSSO token has expired. Get a new one following the setup instructions above.
 
-Now that you have two routes you can use a `Link` component to navigate between them.
+### Games Not Found on OpenCritic
+Some games may not be found due to:
+- Different naming conventions (e.g., "FFVII" vs "Final Fantasy VII")
+- DLC or special editions not having separate listings
+- Regional naming differences
 
-### Adding Links
+Failed games are recorded in the `failed_scrapes` table and won't be retried automatically.
 
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
+### Scraping Timeouts
+If `load_scores.ts` times out frequently:
+- Reduce `NUM_TABS` in the script (default: 4)
+- Check your internet connection
+- Run the script again - it will skip already-rated games
 
-```tsx
-import { Link } from "@tanstack/react-router";
-```
+## License
 
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you use the `<Outlet />` component.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { Outlet, createRootRoute } from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-
-import { Link } from "@tanstack/react-router";
-
-export const Route = createRootRoute({
-  component: () => (
-    <>
-      <header>
-        <nav>
-          <Link to="/">Home</Link>
-          <Link to="/about">About</Link>
-        </nav>
-      </header>
-      <Outlet />
-      <TanStackRouterDevtools />
-    </>
-  ),
-})
-```
-
-The `<TanStackRouterDevtools />` component is not required so you can remove it if you don't want it in your layout.
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-const peopleRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/people",
-  loader: async () => {
-    const response = await fetch("https://swapi.dev/api/people");
-    return response.json() as Promise<{
-      results: {
-        name: string;
-      }[];
-    }>;
-  },
-  component: () => {
-    const data = peopleRoute.useLoaderData();
-    return (
-      <ul>
-        {data.results.map((person) => (
-          <li key={person.name}>{person.name}</li>
-        ))}
-      </ul>
-    );
-  },
-});
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-### React-Query
-
-React-Query is an excellent addition or alternative to route loading and integrating it into you application is a breeze.
-
-First add your dependencies:
-
-```bash
-bun install @tanstack/react-query @tanstack/react-query-devtools
-```
-
-Next we'll need to create a query client and provider. We recommend putting those in `main.tsx`.
-
-```tsx
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-// ...
-
-const queryClient = new QueryClient();
-
-// ...
-
-if (!rootElement.innerHTML) {
-  const root = ReactDOM.createRoot(rootElement);
-
-  root.render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  );
-}
-```
-
-You can also add TanStack Query Devtools to the root route (optional).
-
-```tsx
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-
-const rootRoute = createRootRoute({
-  component: () => (
-    <>
-      <Outlet />
-      <ReactQueryDevtools buttonPosition="top-right" />
-      <TanStackRouterDevtools />
-    </>
-  ),
-});
-```
-
-Now you can use `useQuery` to fetch your data.
-
-```tsx
-import { useQuery } from "@tanstack/react-query";
-
-import "./App.css";
-
-function App() {
-  const { data } = useQuery({
-    queryKey: ["people"],
-    queryFn: () =>
-      fetch("https://swapi.dev/api/people")
-        .then((res) => res.json())
-        .then((data) => data.results as { name: string }[]),
-    initialData: [],
-  });
-
-  return (
-    <div>
-      <ul>
-        {data.map((person) => (
-          <li key={person.name}>{person.name}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-export default App;
-```
-
-You can find out everything you need to know on how to use React-Query in the [React-Query documentation](https://tanstack.com/query/latest/docs/framework/react/overview).
-
-## State Management
-
-Another common requirement for React applications is state management. There are many options for state management in React. TanStack Store provides a great starting point for your project.
-
-First you need to add TanStack Store as a dependency:
-
-```bash
-bun install @tanstack/store
-```
-
-Now let's create a simple counter in the `src/App.tsx` file as a demonstration.
-
-```tsx
-import { useStore } from "@tanstack/react-store";
-import { Store } from "@tanstack/store";
-import "./App.css";
-
-const countStore = new Store(0);
-
-function App() {
-  const count = useStore(countStore);
-  return (
-    <div>
-      <button onClick={() => countStore.setState((n) => n + 1)}>
-        Increment - {count}
-      </button>
-    </div>
-  );
-}
-
-export default App;
-```
-
-One of the many nice features of TanStack Store is the ability to derive state from other state. That derived state will update when the base state updates.
-
-Let's check this out by doubling the count using derived state.
-
-```tsx
-import { useStore } from "@tanstack/react-store";
-import { Store, Derived } from "@tanstack/store";
-import "./App.css";
-
-const countStore = new Store(0);
-
-const doubledStore = new Derived({
-  fn: () => countStore.state * 2,
-  deps: [countStore],
-});
-doubledStore.mount();
-
-function App() {
-  const count = useStore(countStore);
-  const doubledCount = useStore(doubledStore);
-
-  return (
-    <div>
-      <button onClick={() => countStore.setState((n) => n + 1)}>
-        Increment - {count}
-      </button>
-      <div>Doubled - {doubledCount}</div>
-    </div>
-  );
-}
-
-export default App;
-```
-
-We use the `Derived` class to create a new store that is derived from another store. The `Derived` class has a `mount` method that will start the derived store updating.
-
-Once we've created the derived store we can use it in the `App` component just like we would any other store using the `useStore` hook.
-
-You can find out everything you need to know on how to use TanStack Store in the [TanStack Store documentation](https://tanstack.com/store/latest).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
+MIT
