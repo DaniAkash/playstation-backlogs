@@ -18,6 +18,14 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  build: {
+		rollupOptions: {
+			external: ["bun"],
+		},
+	},
+	optimizeDeps: {
+		exclude: ["bun"],
+	},
 })
 
 export default config
