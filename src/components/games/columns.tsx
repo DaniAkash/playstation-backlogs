@@ -1,4 +1,4 @@
-import type { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef, SortingFn } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { ArrowUpDown, ExternalLink } from 'lucide-react'
 
@@ -15,6 +15,24 @@ export type GameWithRating = {
   url: string | null
   hasFailed: boolean
   errorMessage: string | null
+}
+
+const TIER_ORDER: Record<string, number> = {
+  mighty: 5,
+  strong: 4,
+  fair: 3,
+  weak: 2,
+  poor: 1,
+}
+
+const tierSortingFn: SortingFn<GameWithRating> = (rowA, rowB, columnId) => {
+  const tierA = rowA.getValue(columnId) as string | null
+  const tierB = rowB.getValue(columnId) as string | null
+
+  const orderA = tierA ? (TIER_ORDER[tierA.toLowerCase()] ?? 0) : 0
+  const orderB = tierB ? (TIER_ORDER[tierB.toLowerCase()] ?? 0) : 0
+
+  return orderA - orderB
 }
 
 function getTierColor(tier: string | null): string {
@@ -47,6 +65,9 @@ export const columns: ColumnDef<GameWithRating>[] = [
   {
     accessorKey: 'imageUrl',
     header: '',
+    size: 60,
+    minSize: 60,
+    maxSize: 60,
     cell: ({ row }) => {
       const imageUrl = row.getValue('imageUrl') as string | null
       return imageUrl ? (
@@ -76,9 +97,12 @@ export const columns: ColumnDef<GameWithRating>[] = [
         </button>
       )
     },
+    size: 300,
+    minSize: 300,
+    maxSize: 300,
     cell: ({ row }) => {
       return (
-        <div className="font-medium max-w-[300px] truncate">
+        <div className="font-medium w-[280px] truncate">
           {row.getValue('name')}
         </div>
       )
@@ -87,6 +111,9 @@ export const columns: ColumnDef<GameWithRating>[] = [
   {
     accessorKey: 'platform',
     header: 'Platform',
+    size: 100,
+    minSize: 100,
+    maxSize: 100,
     cell: ({ row }) => {
       const platform = row.getValue('platform') as string | null
       return platform ? (
@@ -111,6 +138,9 @@ export const columns: ColumnDef<GameWithRating>[] = [
         </button>
       )
     },
+    size: 80,
+    minSize: 80,
+    maxSize: 80,
     cell: ({ row }) => {
       const score = row.getValue('topCriticAverage') as number | null
       const hasFailed = row.original.hasFailed
@@ -143,6 +173,9 @@ export const columns: ColumnDef<GameWithRating>[] = [
         </button>
       )
     },
+    size: 120,
+    minSize: 120,
+    maxSize: 120,
     cell: ({ row }) => {
       const recommend = row.getValue('criticsRecommend') as number | null
       return recommend !== null ? (
@@ -165,6 +198,10 @@ export const columns: ColumnDef<GameWithRating>[] = [
         </button>
       )
     },
+    size: 90,
+    minSize: 90,
+    maxSize: 90,
+    sortingFn: tierSortingFn,
     cell: ({ row }) => {
       const tier = row.getValue('tier') as string | null
       return tier ? (
@@ -176,7 +213,10 @@ export const columns: ColumnDef<GameWithRating>[] = [
   },
   {
     accessorKey: 'url',
-    header: 'OpenCritic',
+    header: 'Link',
+    size: 60,
+    minSize: 60,
+    maxSize: 60,
     cell: ({ row }) => {
       const url = row.getValue('url') as string | null
       return url ? (
@@ -197,6 +237,9 @@ export const columns: ColumnDef<GameWithRating>[] = [
   {
     accessorKey: 'hasFailed',
     header: 'Status',
+    size: 100,
+    minSize: 100,
+    maxSize: 100,
     cell: ({ row }) => {
       const hasFailed = row.getValue('hasFailed') as boolean
       const errorMessage = row.original.errorMessage
@@ -206,7 +249,7 @@ export const columns: ColumnDef<GameWithRating>[] = [
           <div className="flex flex-col">
             <Badge variant="destructive">Failed</Badge>
             {errorMessage && (
-              <span className="text-xs text-red-400 mt-1 max-w-[150px] truncate">
+              <span className="text-xs text-red-400 mt-1 w-[90px] truncate">
                 {errorMessage}
               </span>
             )}

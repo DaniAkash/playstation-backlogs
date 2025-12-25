@@ -26,6 +26,9 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
 }
 
+type StatusFilter = 'all' | 'rated' | 'failed' | 'pending'
+type PlatformFilter = 'all' | 'ps4' | 'ps5'
+
 export function DataTable<TData, TValue>({
   columns,
   data,
@@ -34,17 +37,26 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [globalFilter, setGlobalFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'rated' | 'failed' | 'pending'>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all')
+  const [pageSize, setPageSize] = useState<number>(20)
 
   const filteredData = useMemo(() => {
     return data.filter((row: any) => {
-      if (statusFilter === 'all') return true
-      if (statusFilter === 'failed') return row.hasFailed
-      if (statusFilter === 'rated') return !row.hasFailed && row.topCriticAverage !== null
-      if (statusFilter === 'pending') return !row.hasFailed && row.topCriticAverage === null
-      return true
+      // Status filter
+      let passesStatus = true
+      if (statusFilter === 'failed') passesStatus = row.hasFailed
+      else if (statusFilter === 'rated') passesStatus = !row.hasFailed && row.topCriticAverage !== null
+      else if (statusFilter === 'pending') passesStatus = !row.hasFailed && row.topCriticAverage === null
+
+      // Platform filter
+      let passesPlatform = true
+      if (platformFilter === 'ps4') passesPlatform = row.platform?.toLowerCase()?.includes('ps4')
+      else if (platformFilter === 'ps5') passesPlatform = row.platform?.toLowerCase()?.includes('ps5')
+
+      return passesStatus && passesPlatform
     })
-  }, [data, statusFilter])
+  }, [data, statusFilter, platformFilter])
 
   const table = useReactTable({
     data: filteredData,
@@ -63,13 +75,18 @@ export function DataTable<TData, TValue>({
       columnFilters,
       columnVisibility,
       globalFilter,
-    },
-    initialState: {
       pagination: {
-        pageSize: 20,
+        pageIndex: 0,
+        pageSize: pageSize === -1 ? filteredData.length : pageSize,
       },
     },
   })
+
+  const handlePageSizeChange = (value: string) => {
+    const newSize = value === 'all' ? -1 : Number(value)
+    setPageSize(newSize)
+    table.setPageSize(newSize === -1 ? filteredData.length : newSize)
+  }
 
   const stats = useMemo(() => {
     const totalGames = data.length
@@ -102,66 +119,68 @@ export function DataTable<TData, TValue>({
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col gap-4">
         <input
           type="text"
           placeholder="Search games..."
           value={globalFilter}
           onChange={(e) => setGlobalFilter(e.target.value)}
-          className="flex-1 px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+          className="w-full px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
         />
-        <div className="flex gap-2">
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              statusFilter === 'all'
-                ? 'bg-cyan-500 text-white'
-                : 'bg-slate-800 text-gray-300 hover:bg-slate-700'
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setStatusFilter('rated')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              statusFilter === 'rated'
-                ? 'bg-emerald-500 text-white'
-                : 'bg-slate-800 text-gray-300 hover:bg-slate-700'
-            }`}
-          >
-            Rated
-          </button>
-          <button
-            onClick={() => setStatusFilter('pending')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              statusFilter === 'pending'
-                ? 'bg-gray-500 text-white'
-                : 'bg-slate-800 text-gray-300 hover:bg-slate-700'
-            }`}
-          >
-            Pending
-          </button>
-          <button
-            onClick={() => setStatusFilter('failed')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              statusFilter === 'failed'
-                ? 'bg-red-500 text-white'
-                : 'bg-slate-800 text-gray-300 hover:bg-slate-700'
-            }`}
-          >
-            Failed
-          </button>
+        <div className="flex flex-wrap gap-4">
+          {/* Status filter */}
+          <div className="flex gap-2">
+            <span className="text-gray-400 self-center text-sm">Status:</span>
+            {(['all', 'rated', 'pending', 'failed'] as StatusFilter[]).map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1.5 rounded-lg transition-colors text-sm ${
+                  statusFilter === status
+                    ? status === 'all' ? 'bg-cyan-500 text-white'
+                    : status === 'rated' ? 'bg-emerald-500 text-white'
+                    : status === 'pending' ? 'bg-gray-500 text-white'
+                    : 'bg-red-500 text-white'
+                    : 'bg-slate-800 text-gray-300 hover:bg-slate-700'
+                }`}
+              >
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Platform filter */}
+          <div className="flex gap-2">
+            <span className="text-gray-400 self-center text-sm">Platform:</span>
+            {(['all', 'ps4', 'ps5'] as PlatformFilter[]).map((platform) => (
+              <button
+                key={platform}
+                onClick={() => setPlatformFilter(platform)}
+                className={`px-3 py-1.5 rounded-lg transition-colors text-sm ${
+                  platformFilter === platform
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-slate-800 text-gray-300 hover:bg-slate-700'
+                }`}
+              >
+                {platform === 'all' ? 'All' : platform.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Table */}
       <div className="rounded-lg border border-slate-700 overflow-hidden">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader className="bg-slate-800">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="border-slate-700 hover:bg-slate-800">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="text-gray-300">
+                  <TableHead
+                    key={header.id}
+                    className="text-gray-300"
+                    style={{ width: header.getSize() }}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -181,7 +200,11 @@ export function DataTable<TData, TValue>({
                   className="border-slate-700 hover:bg-slate-800/50 transition-colors"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="text-gray-200">
+                    <TableCell
+                      key={cell.id}
+                      className="text-gray-200"
+                      style={{ width: cell.column.getSize() }}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -226,7 +249,7 @@ export function DataTable<TData, TValue>({
           </button>
           <span className="px-4 py-1">
             Page {table.getState().pagination.pageIndex + 1} of{' '}
-            {table.getPageCount()}
+            {table.getPageCount() || 1}
           </span>
           <button
             onClick={() => table.nextPage()}
@@ -244,15 +267,16 @@ export function DataTable<TData, TValue>({
           </button>
         </div>
         <select
-          value={table.getState().pagination.pageSize}
-          onChange={(e) => table.setPageSize(Number(e.target.value))}
+          value={pageSize === -1 ? 'all' : pageSize}
+          onChange={(e) => handlePageSizeChange(e.target.value)}
           className="px-3 py-1 bg-slate-800 rounded-md border border-slate-700 focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
         >
-          {[10, 20, 30, 50, 100].map((pageSize) => (
-            <option key={pageSize} value={pageSize}>
-              Show {pageSize}
+          {[10, 20, 30, 50, 100].map((size) => (
+            <option key={size} value={size}>
+              Show {size}
             </option>
           ))}
+          <option value="all">Show All</option>
         </select>
       </div>
     </div>
