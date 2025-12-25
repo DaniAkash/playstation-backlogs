@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -36,13 +36,15 @@ export function DataTable<TData, TValue>({
   const [globalFilter, setGlobalFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'rated' | 'failed' | 'pending'>('all')
 
-  const filteredData = data.filter((row: any) => {
-    if (statusFilter === 'all') return true
-    if (statusFilter === 'failed') return row.hasFailed
-    if (statusFilter === 'rated') return !row.hasFailed && row.topCriticAverage !== null
-    if (statusFilter === 'pending') return !row.hasFailed && row.topCriticAverage === null
-    return true
-  })
+  const filteredData = useMemo(() => {
+    return data.filter((row: any) => {
+      if (statusFilter === 'all') return true
+      if (statusFilter === 'failed') return row.hasFailed
+      if (statusFilter === 'rated') return !row.hasFailed && row.topCriticAverage !== null
+      if (statusFilter === 'pending') return !row.hasFailed && row.topCriticAverage === null
+      return true
+    })
+  }, [data, statusFilter])
 
   const table = useReactTable({
     data: filteredData,
@@ -69,10 +71,13 @@ export function DataTable<TData, TValue>({
     },
   })
 
-  const totalGames = data.length
-  const ratedGames = data.filter((row: any) => !row.hasFailed && row.topCriticAverage !== null).length
-  const failedGames = data.filter((row: any) => row.hasFailed).length
-  const pendingGames = data.filter((row: any) => !row.hasFailed && row.topCriticAverage === null).length
+  const stats = useMemo(() => {
+    const totalGames = data.length
+    const ratedGames = data.filter((row: any) => !row.hasFailed && row.topCriticAverage !== null).length
+    const failedGames = data.filter((row: any) => row.hasFailed).length
+    const pendingGames = data.filter((row: any) => !row.hasFailed && row.topCriticAverage === null).length
+    return { totalGames, ratedGames, failedGames, pendingGames }
+  }, [data])
 
   return (
     <div className="space-y-4">
@@ -80,19 +85,19 @@ export function DataTable<TData, TValue>({
       <div className="flex flex-wrap gap-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
         <div className="flex items-center gap-2">
           <span className="text-gray-400">Total:</span>
-          <Badge variant="outline">{totalGames}</Badge>
+          <Badge variant="outline">{stats.totalGames}</Badge>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400">Rated:</span>
-          <Badge className="bg-emerald-600">{ratedGames}</Badge>
+          <Badge className="bg-emerald-600">{stats.ratedGames}</Badge>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400">Pending:</span>
-          <Badge variant="secondary">{pendingGames}</Badge>
+          <Badge variant="secondary">{stats.pendingGames}</Badge>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400">Failed:</span>
-          <Badge variant="destructive">{failedGames}</Badge>
+          <Badge variant="destructive">{stats.failedGames}</Badge>
         </div>
       </div>
 
