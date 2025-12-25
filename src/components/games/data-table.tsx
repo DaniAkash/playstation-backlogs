@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -52,20 +52,128 @@ const COLUMN_LABELS: Record<string, string> = {
   hasFailed: 'Status',
 }
 
+const STORAGE_KEY = 'game-backlog-table-state'
+
+interface TableState {
+  columnVisibility: VisibilityState
+  columnOrder: ColumnOrderState
+  sorting: SortingState
+  statusFilter: StatusFilter
+  platformFilter: PlatformFilter
+  pageSize: number
+}
+
+function loadStateFromStorage(validColumnIds: string[]): Partial<TableState> | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+
+      // Validate columnOrder - filter out any invalid column IDs and add any missing ones
+      if (parsed.columnOrder) {
+        const validOrder = parsed.columnOrder.filter((id: string) => validColumnIds.includes(id))
+        const missingColumns = validColumnIds.filter(id => !validOrder.includes(id))
+        parsed.columnOrder = [...validOrder, ...missingColumns]
+      }
+
+      // Validate columnVisibility - remove any invalid column IDs
+      if (parsed.columnVisibility) {
+        const validVisibility: VisibilityState = {}
+        for (const [key, value] of Object.entries(parsed.columnVisibility)) {
+          if (validColumnIds.includes(key)) {
+            validVisibility[key] = value as boolean
+          }
+        }
+        parsed.columnVisibility = validVisibility
+      }
+
+      // Validate sorting - remove any invalid column IDs
+      if (parsed.sorting && Array.isArray(parsed.sorting)) {
+        parsed.sorting = parsed.sorting.filter((sort: any) =>
+          sort.id && validColumnIds.includes(sort.id)
+        )
+      }
+
+      // Validate filters
+      if (parsed.statusFilter && !['all', 'rated', 'failed', 'pending'].includes(parsed.statusFilter)) {
+        parsed.statusFilter = 'all'
+      }
+      if (parsed.platformFilter && !['all', 'ps4', 'ps5'].includes(parsed.platformFilter)) {
+        parsed.platformFilter = 'all'
+      }
+
+      return parsed
+    }
+  } catch (e) {
+    console.error('Failed to load table state from localStorage:', e)
+    // Clear corrupted state
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch {}
+  }
+  return null
+}
+
+function saveStateToStorage(state: TableState) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch (e) {
+    console.error('Failed to save table state to localStorage:', e)
+  }
+}
+
 export function DataTable<TData, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
+  const defaultColumnOrder = useMemo(
+    () => columns.map((col) => (col as any).accessorKey as string),
+    [columns]
+  )
+
+  // Load initial state from localStorage
+  const [isHydrated, setIsHydrated] = useState(false)
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(
-    columns.map((col) => (col as any).accessorKey as string)
-  )
+  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(defaultColumnOrder)
   const [globalFilter, setGlobalFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all')
   const [pageSize, setPageSize] = useState<number>(20)
+
+  // Hydrate state from localStorage on mount
+  useEffect(() => {
+    const savedState = loadStateFromStorage(defaultColumnOrder)
+    if (savedState) {
+      if (savedState.sorting) setSorting(savedState.sorting)
+      if (savedState.columnVisibility) setColumnVisibility(savedState.columnVisibility)
+      if (savedState.columnOrder && savedState.columnOrder.length > 0) {
+        setColumnOrder(savedState.columnOrder)
+      }
+      if (savedState.statusFilter) setStatusFilter(savedState.statusFilter)
+      if (savedState.platformFilter) setPlatformFilter(savedState.platformFilter)
+      if (savedState.pageSize !== undefined && savedState.pageSize !== 0) {
+        setPageSize(savedState.pageSize)
+      }
+    }
+    setIsHydrated(true)
+  }, [defaultColumnOrder])
+
+  // Save state to localStorage when it changes
+  useEffect(() => {
+    if (!isHydrated) return
+    saveStateToStorage({
+      sorting,
+      columnVisibility,
+      columnOrder,
+      statusFilter,
+      platformFilter,
+      pageSize,
+    })
+  }, [isHydrated, sorting, columnVisibility, columnOrder, statusFilter, platformFilter, pageSize])
 
   const filteredData = useMemo(() => {
     return data.filter((row: any) => {
@@ -83,6 +191,13 @@ export function DataTable<TData, TValue>({
       return passesStatus && passesPlatform
     })
   }, [data, statusFilter, platformFilter])
+
+  const effectivePageSize = useMemo(() => {
+    if (pageSize === -1) {
+      return Math.max(filteredData.length, 1)
+    }
+    return pageSize
+  }, [pageSize, filteredData.length])
 
   const table = useReactTable({
     data: filteredData,
@@ -105,7 +220,7 @@ export function DataTable<TData, TValue>({
       globalFilter,
       pagination: {
         pageIndex: 0,
-        pageSize: pageSize === -1 ? filteredData.length : pageSize,
+        pageSize: effectivePageSize,
       },
     },
   })
@@ -113,7 +228,6 @@ export function DataTable<TData, TValue>({
   const handlePageSizeChange = (value: string) => {
     const newSize = value === 'all' ? -1 : Number(value)
     setPageSize(newSize)
-    table.setPageSize(newSize === -1 ? filteredData.length : newSize)
   }
 
   const moveColumn = (columnId: string, direction: 'up' | 'down') => {
@@ -135,6 +249,22 @@ export function DataTable<TData, TValue>({
     const pendingGames = data.filter((row: any) => !row.hasFailed && row.topCriticAverage === null).length
     return { totalGames, ratedGames, failedGames, pendingGames }
   }, [data])
+
+  // Show loading state during hydration to prevent SSR mismatch
+  if (!isHydrated) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700 animate-pulse">
+          <div className="h-6 w-24 bg-slate-700 rounded" />
+          <div className="h-6 w-24 bg-slate-700 rounded" />
+          <div className="h-6 w-24 bg-slate-700 rounded" />
+          <div className="h-6 w-24 bg-slate-700 rounded" />
+        </div>
+        <div className="h-10 bg-slate-800 rounded-lg animate-pulse" />
+        <div className="h-96 bg-slate-800/50 rounded-lg border border-slate-700 animate-pulse" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -229,7 +359,11 @@ export function DataTable<TData, TValue>({
                 <button
                   onClick={() => {
                     table.getAllColumns().forEach((col) => col.toggleVisibility(true))
-                    setColumnOrder(columns.map((col) => (col as any).accessorKey as string))
+                    setColumnOrder(defaultColumnOrder)
+                    setSorting([])
+                    setStatusFilter('all')
+                    setPlatformFilter('all')
+                    setPageSize(20)
                   }}
                   className="text-xs text-cyan-400 hover:text-cyan-300"
                 >
