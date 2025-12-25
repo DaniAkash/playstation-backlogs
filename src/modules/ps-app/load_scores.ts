@@ -1,4 +1,4 @@
-import puppeteer, { Page } from "puppeteer";
+import puppeteer, { Page, Browser } from "puppeteer";
 import { db } from "@/db";
 import { purchasedGames, gameRatings, failedScrapes } from "@/db/schema";
 import { and, desc, eq, isNull } from "drizzle-orm";
@@ -130,7 +130,7 @@ async function main() {
   }
 
   // Launch separate browser instances for true parallelism
-  const browsers: puppeteer.Browser[] = [];
+  const browsers: Browser[] = [];
   const pages: Page[] = [];
 
   for (let i = 0; i < NUM_TABS; i++) {
