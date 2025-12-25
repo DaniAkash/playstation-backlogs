@@ -1,6 +1,6 @@
-import type { ColumnDef, SortingFn } from '@tanstack/react-table'
+import type { ColumnDef, SortingFn, Column } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
-import { ArrowUpDown, ExternalLink } from 'lucide-react'
+import { ArrowUp, ArrowDown, ArrowUpDown, ExternalLink } from 'lucide-react'
 
 export type GameWithRating = {
   id: number
@@ -11,6 +11,7 @@ export type GameWithRating = {
   isActive: boolean | null
   topCriticAverage: number | null
   criticsRecommend: number | null
+  playerRating: string | null
   tier: string | null
   url: string | null
   hasFailed: boolean
@@ -61,6 +62,28 @@ function getScoreColor(score: number | null): string {
   return 'text-red-400'
 }
 
+function SortableHeader({ column, children }: { column: Column<GameWithRating, unknown>, children: React.ReactNode }) {
+  const isSorted = column.getIsSorted()
+
+  return (
+    <button
+      className={`flex items-center gap-1 transition-colors ${
+        isSorted ? 'text-cyan-400' : 'hover:text-white'
+      }`}
+      onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+    >
+      {children}
+      {isSorted === 'asc' ? (
+        <ArrowUp className="h-4 w-4" />
+      ) : isSorted === 'desc' ? (
+        <ArrowDown className="h-4 w-4" />
+      ) : (
+        <ArrowUpDown className="h-4 w-4 opacity-50" />
+      )}
+    </button>
+  )
+}
+
 export const columns: ColumnDef<GameWithRating>[] = [
   {
     accessorKey: 'imageUrl',
@@ -86,17 +109,7 @@ export const columns: ColumnDef<GameWithRating>[] = [
   },
   {
     accessorKey: 'name',
-    header: ({ column }) => {
-      return (
-        <button
-          className="flex items-center gap-1 hover:text-white transition-colors"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        >
-          Name
-          <ArrowUpDown className="h-4 w-4" />
-        </button>
-      )
-    },
+    header: ({ column }) => <SortableHeader column={column}>Name</SortableHeader>,
     size: 300,
     minSize: 300,
     maxSize: 300,
@@ -127,17 +140,7 @@ export const columns: ColumnDef<GameWithRating>[] = [
   },
   {
     accessorKey: 'topCriticAverage',
-    header: ({ column }) => {
-      return (
-        <button
-          className="flex items-center gap-1 hover:text-white transition-colors"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        >
-          Score
-          <ArrowUpDown className="h-4 w-4" />
-        </button>
-      )
-    },
+    header: ({ column }) => <SortableHeader column={column}>Score</SortableHeader>,
     size: 80,
     minSize: 80,
     maxSize: 80,
@@ -162,20 +165,10 @@ export const columns: ColumnDef<GameWithRating>[] = [
   },
   {
     accessorKey: 'criticsRecommend',
-    header: ({ column }) => {
-      return (
-        <button
-          className="flex items-center gap-1 hover:text-white transition-colors"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        >
-          Recommend %
-          <ArrowUpDown className="h-4 w-4" />
-        </button>
-      )
-    },
-    size: 120,
-    minSize: 120,
-    maxSize: 120,
+    header: ({ column }) => <SortableHeader column={column}>Recommend %</SortableHeader>,
+    size: 130,
+    minSize: 130,
+    maxSize: 130,
     cell: ({ row }) => {
       const recommend = row.getValue('criticsRecommend') as number | null
       return recommend !== null ? (
@@ -186,18 +179,23 @@ export const columns: ColumnDef<GameWithRating>[] = [
     },
   },
   {
-    accessorKey: 'tier',
-    header: ({ column }) => {
-      return (
-        <button
-          className="flex items-center gap-1 hover:text-white transition-colors"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        >
-          Tier
-          <ArrowUpDown className="h-4 w-4" />
-        </button>
+    accessorKey: 'playerRating',
+    header: ({ column }) => <SortableHeader column={column}>Player</SortableHeader>,
+    size: 80,
+    minSize: 80,
+    maxSize: 80,
+    cell: ({ row }) => {
+      const playerRating = row.getValue('playerRating') as string | null
+      return playerRating ? (
+        <span className="text-blue-400">{playerRating}</span>
+      ) : (
+        <span className="text-gray-500">-</span>
       )
     },
+  },
+  {
+    accessorKey: 'tier',
+    header: ({ column }) => <SortableHeader column={column}>Tier</SortableHeader>,
     size: 90,
     minSize: 90,
     maxSize: 90,

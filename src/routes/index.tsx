@@ -29,6 +29,7 @@ const getGamesWithRatings = createServerFn({
       entitlementId: gameRatings.entitlementId,
       topCriticAverage: gameRatings.topCriticAverage,
       criticsRecommend: gameRatings.criticsRecommend,
+      playerRating: gameRatings.playerRating,
       tier: gameRatings.tier,
       url: gameRatings.url,
     })
@@ -60,6 +61,7 @@ const getGamesWithRatings = createServerFn({
       isActive: game.isActive,
       topCriticAverage: rating?.topCriticAverage ?? null,
       criticsRecommend: rating?.criticsRecommend ?? null,
+      playerRating: rating?.playerRating ?? null,
       tier: rating?.tier ?? null,
       url: rating?.url ?? null,
       hasFailed: !!failure,
